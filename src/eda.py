@@ -28,7 +28,6 @@ class DescriptiveAnalyzer:
             else:
                 df_year = self.df
 
-            # شمارش وزنی یا ساده
             if weight_col and weight_col in df_year.columns:
                 counts = df_year.groupby(self.target_col)[weight_col].sum()
             else:
@@ -44,7 +43,6 @@ class DescriptiveAnalyzer:
                 print(f"\nYear: {year if year else 'All'}")
                 display(summary)
 
-            # فقط یک مثال: رسم bar plot
             if plot_type == 'bar':
                 plt.figure(figsize=(8, 5))
                 palette = sns.color_palette("Set2", len(counts))

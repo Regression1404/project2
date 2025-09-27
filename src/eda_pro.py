@@ -12,13 +12,6 @@ sns.set(style="whitegrid")
 
 
 class DescriptiveAnalyzerPro:
-    """
-    کلاس تحلیل توصیفی پیشرفته — طراحی شده برای:
-      - فیچرها و جدول target جدا هستند (وصل شدن با ID+Year در صورت نیاز)
-      - تولید نمودارها (pairplot, violin, stacked bar, heatmaps)
-      - تست‌های آماری (chi2 برای دسته‌ای، ANOVA برای عددی)
-      - اندازه‌گیری ارتباط (Mutual Info، Cramer's V)
-    """
 
     def __init__(
             self,
@@ -34,7 +27,6 @@ class DescriptiveAnalyzerPro:
         self.year_col = year_col
         self.target_col = target_col
 
-        # چک اولیه
         for c in [self.id_col, self.year_col]:
             if c not in self.features.columns:
                 raise ValueError(f"ستون '{c}' در features_df موجود نیست.")
@@ -44,7 +36,6 @@ class DescriptiveAnalyzerPro:
             raise ValueError(f"ستون target '{self.target_col}' در target_df نیست.")
 
     def _join_target(self) -> pd.DataFrame:
-        """موقتا features و target را با هم بر اساس ID و Year جوین می‌کند و نتیجه را برمی‌گرداند."""
         df = self.features.merge(
             self.target[[self.id_col, self.year_col, self.target_col]],
             on=[self.id_col, self.year_col],
@@ -63,10 +54,7 @@ class DescriptiveAnalyzerPro:
             show_plot: bool = True,
             save: Optional[str] = None,
     ):
-        """
-        Compute weighted summary stats and optionally plot boxplots/histograms by year.
-        Returns: dict {year: DataFrame of stats}
-        """
+
         df = self.features.copy()
         years = sorted(df[self.year_col].unique())
         results = {}
@@ -142,15 +130,11 @@ class DescriptiveAnalyzerPro:
             weight_col: str = "Weight",
             by_year: bool = False
     ) -> Dict[str, plt.Figure]:
-        """
-        هیستوگرام‌های تفکیکیِ هر فیچر عددی بر اساس target.
-        برمی‌گرداند: دیکشنری {feature: figure}
-        """
+
 
         df = self._join_target()
         if numeric_features is None:
             numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
-            # حذف ID, Year, Weight و ستون‌های غیرتحلیلی
             numeric_features = [
                 c
                 for c in numeric_features
@@ -179,7 +163,7 @@ class DescriptiveAnalyzerPro:
                     sns.histplot(
                         data=cat_data,
                         x=feat,
-                        weights=cat_data[weight_col] if weight_col in cat_data else None,  # 👈 وزن اینجا اعمال میشه
+                        weights=cat_data[weight_col] if weight_col in cat_data else None,
                         label=str(cat),
                         kde=False,
                         bins=bins,
@@ -204,10 +188,7 @@ class DescriptiveAnalyzerPro:
         return figs
 
     def target_distribution(self, plot_type='bar', show_table=True):
-        """
-        نمایش توزیع تارگت به صورت جدول و نمودار.
-        plot_type: 'bar', 'pie', 'hbar'
-        """
+
         counts = self.df[self.target_col].value_counts()
         percentages = counts / counts.sum() * 100
         summary = pd.DataFrame({
@@ -215,11 +196,9 @@ class DescriptiveAnalyzerPro:
             "Percentage": percentages.round(2)
         })
 
-        # نمایش جدول
         if show_table:
             display(summary)
 
-        # انتخاب رنگ‌ها
         palette = sns.color_palette("Set2", len(counts))
 
         if plot_type == 'bar':
@@ -317,7 +296,6 @@ class DescriptiveAnalyzerPro:
 
             sub_df = df.copy()
 
-            # توسعه داده‌ها بر اساس وزن
             sub_df = sub_df.loc[sub_df[weight_col] > 0, [self.target_col, feat, weight_col]]
             sub_df = sub_df.loc[sub_df[weight_col].notna()]
 
@@ -353,10 +331,7 @@ class DescriptiveAnalyzerPro:
             random_state: int = 42,
             save: Optional[str] = None,
     ) -> plt.Figure:
-        """
-        pairplot/sample scatter matrix برای تعدادی فیچر عددی.
-        از نمونه برداری استفاده می‌کنیم تا خیلی سنگین نشه.
-        """
+
         df = self._join_target()
         if numeric_features is None:
             numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -365,7 +340,6 @@ class DescriptiveAnalyzerPro:
             ]
         numeric_features = numeric_features[:max_vars]
 
-        # اضافه کردن ستون weight به نمونه
         samp = df[numeric_features + [self.target_col, "Weight"]].sample(
             frac=sample_frac, random_state=random_state
         )
@@ -382,10 +356,7 @@ class DescriptiveAnalyzerPro:
             figsize: tuple = (10, 6),
             save: Optional[str] = None,
     ) -> Dict[str, plt.Figure]:
-        """
-        برای هر فیچر دسته‌ای یک نمودار stacked bar می‌سازیم:
-        سهم هر دسته target در هر دسته فیچر.
-        """
+
         df = self._join_target()
         if cat_features is None:
             cat_features = df.select_dtypes(include=["object", "category"]).columns.tolist()
@@ -393,14 +364,12 @@ class DescriptiveAnalyzerPro:
 
         figs = {}
         for feat in cat_features:
-            # اگر تعداد دسته‌ها زیاد بود، فقط top_n
             top_cats = df[feat].value_counts().nlargest(top_n).index.tolist()
             sub = df[df[feat].isin(top_cats)].dropna(subset=[self.target_col])
 
             if sub.empty:
                 continue
 
-                # در نظر گرفتن وزن‌ها
             ctab = pd.crosstab(
                 sub[feat], sub[self.target_col],
                 normalize="index",
@@ -426,10 +395,7 @@ class DescriptiveAnalyzerPro:
             figsize: tuple = (10, 6),
             save: Optional[str] = None,
     ) -> Dict[str, plt.Figure]:
-        """
-        برای هر فیچر دسته‌ای یک نمودار stacked bar می‌سازیم:
-        سهم هر دسته target در هر دسته فیچر.
-        """
+
         df = self._join_target()
         if cat_features is None:
             cat_features = df.select_dtypes(include=["object", "category"]).columns.tolist()
@@ -437,14 +403,12 @@ class DescriptiveAnalyzerPro:
 
         figs = {}
         for feat in cat_features:
-            # اگر تعداد دسته‌ها زیاد بود، فقط top_n
             top_cats = df[feat].value_counts().nlargest(top_n).index.tolist()
             sub = df[df[feat].isin(top_cats)].dropna(subset=[self.target_col])
 
             if sub.empty:
                 continue
 
-                # در نظر گرفتن وزن‌ها
             ctab = pd.crosstab(
                 sub[feat], sub[self.target_col],
                 normalize="index",
@@ -469,10 +433,7 @@ class DescriptiveAnalyzerPro:
             figsize: tuple = (10, 8),
             save_prefix: Optional[str] = None,
     ) -> Dict[str, plt.Figure]:
-        """
-        نقشه همبستگی کلی و در صورت نیاز نقشه‌های همبستگی به تفکیک target.
-        برمی‌گرداند دیکشنری {'overall': fig, 'cat_value': fig, ...}
-        """
+
         df = self._join_target()
         if numeric_features is None:
             numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -480,12 +441,10 @@ class DescriptiveAnalyzerPro:
                 c for c in numeric_features if c not in [self.id_col, self.year_col]
             ]
 
-            # اضافه کردن ستون weight به لیست فیچرها (اگه نباشه)
         if "weight" not in numeric_features:
             numeric_features.append("Weight")
 
         figs = {}
-        # Overall
         corr = df[numeric_features].corr()
         fig, ax = plt.subplots(figsize=figsize)
         sns.heatmap(corr, annot=False, ax=ax, cmap="coolwarm")
@@ -512,9 +471,7 @@ class DescriptiveAnalyzerPro:
         return figs
 
 
-# ----------------- آماری / اندازه‌گیری ارتباط -----------------
     def cramers_v(self, x: pd.Series, y: pd.Series) -> float:
-        """محاسبه Cramér's V برای دو متغیر دسته‌ای."""
         ct = pd.crosstab(x, y)
         if ct.size == 0:
             return np.nan
@@ -524,7 +481,6 @@ class DescriptiveAnalyzerPro:
             return np.nan
         phi2 = chi2 / n
         r, k = ct.shape
-        # اصلاح برای bias
         phi2corr = max(0, phi2 - ((k - 1) * (r - 1)) / (n - 1))
         rcorr = r - ((r - 1) ** 2) / (n - 1)
         kcorr = k - ((k - 1) ** 2) / (n - 1)
@@ -536,10 +492,7 @@ class DescriptiveAnalyzerPro:
     def chi2_tests_categorical(
             self, cat_features: Optional[List[str]] = None
     ) -> pd.DataFrame:
-        """
-        برای هر فیچر دسته‌ای، آزمون chi2 (crosstab بین فیچر و target)
-        خروجی: جدول با columns = [feature, chi2, p_value, dof, cramers_v]
-        """
+
         df = self._join_target().dropna(subset=[self.target_col])
         if cat_features is None:
             cat_features = df.select_dtypes(include=["object", "category"]).columns.tolist()
@@ -560,10 +513,7 @@ class DescriptiveAnalyzerPro:
     def anova_numeric_by_target(
             self, numeric_features: Optional[List[str]] = None
     ) -> pd.DataFrame:
-        """
-        ANOVA (f_oneway) برای هر فیچر عددی: آیا میانگین در گروه‌های مختلف target تفاوت معناداری دارد؟
-        خروجی: feature, f_stat, p_value
-        """
+
         df = self._join_target().dropna(subset=[self.target_col])
         if numeric_features is None:
             numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -572,7 +522,6 @@ class DescriptiveAnalyzerPro:
         groups = df[self.target_col].unique()
         for feat in numeric_features:
             samples = [df.loc[df[self.target_col] == g, feat].dropna().values for g in groups]
-            # نیاز به حداقل دو گروه با داده
             valid = [s for s in samples if len(s) > 1]
             if len(valid) < 2:
                 rows.append({"feature": feat, "f_stat": np.nan, "p_value": np.nan})
@@ -591,12 +540,8 @@ class DescriptiveAnalyzerPro:
             discrete_features: Optional[List[str]] = None,
             random_state: int = 0,
     ) -> pd.DataFrame:
-        """
-        Mutual Information (برای برآورد اهمیت فیچرها نسبت به target).
-        این متد فقط برای target دسته‌ای مناسب است (classification-like).
-        """
+
         df = self._join_target().dropna(subset=[self.target_col]).copy()
-        # ساخت X و y
         if numeric_features is None:
             numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
             numeric_features = [c for c in numeric_features if c not in [self.id_col, self.year_col]]
@@ -604,7 +549,6 @@ class DescriptiveAnalyzerPro:
             cat_features = df.select_dtypes(include=["object", "category"]).columns.tolist()
             cat_features = [c for c in cat_features if c not in [self.target_col]]
 
-        # برای فیچرهای دسته‌ای: label encoding ساده
         X = pd.DataFrame(index=df.index)
         for c in numeric_features:
             X[c] = df[c].fillna(0)
@@ -614,7 +558,6 @@ class DescriptiveAnalyzerPro:
         if X.shape[0] < 5:
             raise ValueError("دیتا برای محاسبه Mutual Info خیلی کم است.")
         y = pd.factorize(df[self.target_col])[0]
-        # همه‌ی فیچر‌ها discrete یا continuous مشخص شود
         if discrete_features is None:
             discrete = [1 if c in cat_features else 0 for c in X.columns]
         else:
@@ -625,10 +568,7 @@ class DescriptiveAnalyzerPro:
         return res
 
     def quick_report(self, top_cat: int = 10, top_num: int = 10) -> Dict[str, Any]:
-        """
-        یک گزارش سریع ترکیبی (summary, top categorical chi2, top numeric anova, mutual info)
-        برمی‌گرداند dict از نتایج.
-        """
+
         summary = self.summary_stats()
         chi2 = self.chi2_tests_categorical().head(top_cat)
         anova = self.anova_numeric_by_target().head(top_num)
